@@ -1,10 +1,10 @@
 # Potong Studio — demo pemesanan jasa edit video
 
-Demo PHP sederhana untuk landing page, registrasi/login, pemesanan, dan panel admin. Tampilan menggunakan PHP templates, CSS, dan JavaScript terpisah. Data disimpan pada SQLite lokal.
+Demo PHP sederhana untuk landing page, registrasi/login, pemesanan, dan panel admin. Tampilan menggunakan PHP templates, CSS, dan JavaScript terpisah. Data lokal disimpan pada SQLite; pada runtime tanpa SQLite demo beralih ke localStorage di browser.
 
 ## Menjalankan
 
-Kebutuhan: PHP 8.1+ dengan ekstensi `pdo_sqlite` aktif.
+Kebutuhan lokal: PHP 8.1+ dengan ekstensi `pdo_sqlite` aktif.
 
 ```sh
 php database/seed.php
@@ -18,6 +18,12 @@ php -S 127.0.0.1:8000 router.php
 ```
 
 Buka `http://127.0.0.1:8000`. Akun demo: pelanggan `a` / `a`; admin `admin` / `admin`.
+
+## Deploy ke Vercel
+
+`vercel.json` mengaktifkan runtime komunitas `vercel-php` untuk entry PHP, menyajikan aset dari `public/assets`, dan mengarahkan halaman ke `index.php`. Import folder ini sebagai project Vercel lalu deploy.
+
+Vercel tidak menyimpan perubahan ke SQLite lokal secara persisten. Tanpa database hosted, situs memakai mode demo browser: data hanya terlihat pada browser/perangkat yang sama. Jangan gunakan mode ini untuk data pelanggan sungguhan. Untuk penggunaan multi-user, hubungkan database hosted dan sesuaikan koneksi `app/config.php` sebelum deploy.
 
 ## Struktur
 
@@ -38,5 +44,5 @@ tests/               Pemeriksaan manual/API
 - Registrasi dan login menggunakan sesi PHP; password disimpan dengan `password_hash`.
 - Pelanggan hanya melihat pesanan miliknya. Admin dapat melihat semua pesanan dan mengubah status.
 - Tidak ada payment gateway. Angka harga hanya estimasi pada demo.
-- `database/potong.sqlite` dibuat saat `database/seed.php` dijalankan dan dikecualikan dari Git.
+- `database/potong.sqlite` dibuat saat `database/seed.php` dijalankan secara lokal dan dikecualikan dari Git.
 - Ganti kata sandi admin demo sebelum demo di jaringan publik.

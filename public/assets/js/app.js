@@ -8,8 +8,91 @@ async function api(url, options = {}) {
     ...options,
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Permintaan belum berhasil.');
+  if (!response.ok) {
+    const error = new Error(data.error || 'Permintaan belum berhasil.');
+    error.code = data.code;
+    throw error;
+  }
   return data;
+}
+
+const DEMO_USERS_KEY = 'potong_users';
+const DEMO_ORDERS_KEY = 'potong_orders';
+const DEMO_SESSION_KEY = 'potong_session';
+let demoMode = false;
+function demoUsers() {
+  let users = JSON.parse(localStorage.getItem(DEMO_USERS_KEY) || 'null');
+  if (!users) {
+    users = [
+      { username: 'a', password: 'a', name: 'Alya Demo', email: 'alya@example.com', role: 'customer' },
+      { username: 'admin', password: 'admin', name: 'Admin Potong', email: 'admin@potong.studio', role: 'admin' },
+    ];
+    localStorage.setItem(DEMO_USERS_KEY, JSON.stringify(users));
+  }
+  return users;
+}
+function demoOrders() { return JSON.parse(localStorage.getItem(DEMO_ORDERS_KEY) || '[]'); }
+function demoCall(url, options = {}) {
+  const method = options.method || 'GET';
+  const data = JSON.parse(options.body || '{}');
+  const action = new URL(url, location.origin);
+  if (action.pathname.endsWith('/auth.php')) {
+    const act = action.searchParams.get('action');
+    if (act === 'me') {
+      const username = localStorage.getItem(DEMO_SESSION_KEY);
+      return Promise.resolve({ user: demoUsers().find((user) => user.username === username) || null });
+    }
+    if (act === 'logout') { localStorage.removeItem(DEMO_SESSION_KEY); return Promise.resolve({ ok: true }); }
+    if (act === 'login') {
+      const user = demoUsers().find((entry) => entry.username.toLowerCase() === String(data.username).toLowerCase() && entry.password === data.password);
+      if (!user) return Promise.reject(new Error('Username atau password tidak cocok.'));
+      localStorage.setItem(DEMO_SESSION_KEY, user.username);
+      return Promise.resolve({ user });
+    }
+    if (act === 'register') {
+      const users = demoUsers();
+      if (users.some((user) => user.username.toLowerCase() === String(data.username).toLowerCase())) return Promise.reject(new Error('Username sudah dipakai. Coba username lain.'));
+      const user = { username: data.username, password: data.password, name: data.name, email: data.email, role: 'customer' };
+      users.push(user); localStorage.setItem(DEMO_USERS_KEY, JSON.stringify(users)); localStorage.setItem(DEMO_SESSION_KEY, user.username);
+      return Promise.resolve({ user });
+    }
+  }
+  const user = demoUsers().find((entry) => entry.username === localStorage.getItem(DEMO_SESSION_KEY));
+  if (!user) return Promise.reject(new Error('Silakan masuk terlebih dahulu.'));
+  let orders = demoOrders();
+  if (method === 'GET') {
+    if (user.role === 'admin') {
+      const status = action.searchParams.get('status') || 'all';
+      const visible = status === 'all' ? orders : orders.filter((order) => order.status === status);
+      return Promise.resolve({ orders: visible });
+    }
+    return Promise.resolve({ orders: orders.filter((order) => order.username === user.username) });
+  }
+  if (method === 'POST') {
+    const prices = { 'Short & simple': 50000, 'Creator cut': 150000, 'Project cut': 300000 };
+    if (!prices[data.package]) return Promise.reject(new Error('Pilih paket yang tersedia.'));
+    const order = { code: `PTG-${Date.now().toString().slice(-6)}`, id: `PTG-${Date.now().toString().slice(-6)}`, username: user.username, name: user.name, email: user.email, package: data.package, price: prices[data.package], deadline: data.deadline, drive_url: data.drive, notes: data.notes, status: 'Menunggu konfirmasi', created_at: new Date().toISOString() };
+    orders.push(order); localStorage.setItem(DEMO_ORDERS_KEY, JSON.stringify(orders));
+    return Promise.resolve({ ok: true, id: order.id });
+  }
+  if (method === 'PATCH') {
+    if (user.role !== 'admin') return Promise.reject(new Error('Akses hanya untuk admin.'));
+    orders = orders.map((order) => order.code === data.id ? { ...order, status: data.status } : order);
+    localStorage.setItem(DEMO_ORDERS_KEY, JSON.stringify(orders));
+    return Promise.resolve({ ok: true });
+  }
+  return Promise.reject(new Error('Metode tidak didukung.'));
+}
+async function request(url, options = {}) {
+  if (demoMode) return demoCall(url, options);
+  try {
+    return await api(url, options);
+  } catch (error) {
+    if (error.code !== 'DATABASE_UNAVAILABLE') throw error;
+    demoMode = true;
+    toast('Mode demo browser aktif. Data hanya tersimpan di browser ini.');
+    return demoCall(url, options);
+  }
 }
 
 function showView(name) {
@@ -49,7 +132,7 @@ function formatDate(value) {
 $('#loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
-    const result = await api('/api/auth.php?action=login', {
+    const result = await request('/api/auth.php?action=login', {
       method: 'POST', body: JSON.stringify({ username: $('#loginUser').value.trim(), password: $('#loginPass').value }),
     });
     currentUser = result.user;
@@ -59,7 +142,7 @@ $('#loginForm').addEventListener('submit', async (event) => {
 $('#registerForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
-    const result = await api('/api/auth.php?action=register', {
+    const result = await request('/api/auth.php?action=register', {
       method: 'POST',
       body: JSON.stringify({ name: $('#regName').value.trim(), email: $('#regEmail').value.trim(), username: $('#regUser').value.trim(), password: $('#regPass').value }),
     });
@@ -69,7 +152,7 @@ $('#registerForm').addEventListener('submit', async (event) => {
   } catch (error) { showMessage('#registerMsg', error.message); }
 });
 async function logout() {
-  try { await api('/api/auth.php?action=logout', { method: 'POST', body: '{}' }); } catch (_) { /* tetap kembali ke halaman publik */ }
+  try { await request('/api/auth.php?action=logout', { method: 'POST', body: '{}' }); } catch (_) { /* tetap kembali ke halaman publik */ }
   currentUser = null;
   showView('home');
   toast('Kamu sudah keluar.');
@@ -100,7 +183,7 @@ function dashboardTab(name) {
 function statusClass(status) { return status === 'Selesai' ? 'done' : status === 'Dalam pengerjaan' ? 'pending' : ''; }
 async function renderMyOrders() {
   try {
-    const { orders } = await api('/api/orders.php');
+    const { orders } = await request('/api/orders.php');
     $('#myCount').textContent = orders.length;
     $('#myQueue').textContent = orders.filter((order) => order.status !== 'Selesai').length;
     $('#myDone').textContent = orders.filter((order) => order.status === 'Selesai').length;
@@ -119,7 +202,7 @@ $('#orderForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const selected = $('#package').value.split(' — ')[0];
   try {
-    await api('/api/orders.php', { method: 'POST', body: JSON.stringify({ package: selected, deadline: $('#deadline').value, drive: $('#drive').value.trim(), notes: $('#notes').value.trim() }) });
+    await request('/api/orders.php', { method: 'POST', body: JSON.stringify({ package: selected, deadline: $('#deadline').value, drive: $('#drive').value.trim(), notes: $('#notes').value.trim() }) });
     event.target.reset();
     dashboardTab('orders');
     toast('Pesanan tersimpan. Admin dapat melihatnya.');
@@ -129,8 +212,8 @@ async function renderAdmin() {
   if (currentUser?.role !== 'admin') return;
   try {
     const [result, totalsResult] = await Promise.all([
-      api(`/api/orders.php?status=${encodeURIComponent($('#statusFilter').value)}`),
-      api('/api/orders.php?status=all&summary=1'),
+      request(`/api/orders.php?status=${encodeURIComponent($('#statusFilter').value)}`),
+      request('/api/orders.php?status=all&summary=1'),
     ]);
     const allOrders = totalsResult.orders;
     $('#adminOrdersCount').textContent = allOrders.length;
@@ -141,11 +224,11 @@ async function renderAdmin() {
   } catch (error) { toast(error.message); }
 }
 async function changeStatus(id, status) {
-  try { await api('/api/orders.php', { method: 'PATCH', body: JSON.stringify({ id, status }) }); await renderAdmin(); toast('Status pesanan diperbarui.'); }
+  try { await request('/api/orders.php', { method: 'PATCH', body: JSON.stringify({ id, status }) }); await renderAdmin(); toast('Status pesanan diperbarui.'); }
   catch (error) { toast(error.message); }
 }
 function exportOrders() {
-  api('/api/orders.php?status=all').then(({ orders }) => {
+  request('/api/orders.php?status=all').then(({ orders }) => {
     if (!orders.length) { toast('Belum ada pesanan untuk diunduh.'); return; }
     const values = [['ID', 'Nama', 'Email', 'Paket', 'Estimasi', 'Tanggal', 'Target', 'Catatan', 'Status'], ...orders.map((order) => [order.code, order.name, order.email, order.package, order.price, order.created_at, order.deadline, order.notes, order.status])];
     const csv = values.map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
@@ -161,7 +244,7 @@ function orderPackageFromQuery() {
   if (location.search) history.replaceState({}, '', location.pathname);
 }
 
-api('/api/auth.php?action=me').then(({ user }) => {
+request('/api/auth.php?action=me').then(({ user }) => {
   currentUser = user;
   if (user) showView('app');
 }).catch(() => {});

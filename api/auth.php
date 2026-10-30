@@ -49,5 +49,9 @@ try {
     json_response(['error' => 'Aksi tidak dikenal.'], 404);
 } catch (Throwable $e) {
     error_log((string)$e);
-    json_response(['error' => 'Terjadi masalah pada server. Pastikan database sudah disiapkan.'], 500);
+    $action = $_GET['action'] ?? '';
+    $message = str_contains($e->getMessage(), 'PDO SQLite')
+        ? 'Database SQLite belum aktif di runtime ini. Aktifkan pdo_sqlite atau gunakan storage persisten.'
+        : 'Terjadi masalah pada server. Pastikan database sudah disiapkan.';
+    json_response(['error' => $message, 'code' => 'DATABASE_UNAVAILABLE'], 503);
 }

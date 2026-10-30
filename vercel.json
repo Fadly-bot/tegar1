@@ -8,6 +8,7 @@
   },
   "rewrites": [
     { "source": "/assets/(.*)", "destination": "/public/assets/$1" },
+    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/", "destination": "/api/index.php" },
     { "source": "/(.*)", "destination": "/api/index.php" }
   ]

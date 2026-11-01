@@ -21,7 +21,7 @@ Buka `http://127.0.0.1:8000`. Akun demo: pelanggan `a` / `a`; admin `admin` / `a
 
 ## Deploy ke Vercel
 
-`vercel.json` mengaktifkan runtime komunitas `vercel-php` hanya untuk file di `api/`, menyajikan aset dari `public/assets`, dan mengarahkan halaman utama ke `api/index.php`. Import folder ini sebagai project Vercel lalu deploy.
+`vercel.json` mengaktifkan runtime komunitas `vercel-php` untuk entry point `index.php` dan endpoint di `api/`, menyajikan aset dari `public/assets`, serta mengarahkan halaman utama ke `index.php`. Halaman login ditampilkan dari beranda hanya setelah tombol Masuk dipilih. Import folder ini sebagai project Vercel lalu deploy.
 
 Vercel tidak menyimpan perubahan ke SQLite lokal secara persisten. Tanpa database hosted, situs memakai mode demo browser: data hanya terlihat pada browser/perangkat yang sama. Jangan gunakan mode ini untuk data pelanggan sungguhan. Untuk penggunaan multi-user, hubungkan database hosted dan sesuaikan koneksi `app/config.php` sebelum deploy.
 

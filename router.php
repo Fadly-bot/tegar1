@@ -17,5 +17,8 @@ if (str_starts_with($path, '/api/')) {
     if (is_file($endpoint)) { require $endpoint; return true; }
     http_response_code(404); header('Content-Type: application/json'); echo '{"error":"Endpoint tidak ditemukan."}'; return true;
 }
-if ($path === '/') { require __DIR__ . '/index.php'; return true; }
+if ($path === '/' || $path === '/index.php' || $path === '/login.php') {
+    require __DIR__ . '/index.php';
+    return true;
+}
 http_response_code(404); echo 'Tidak ditemukan.';

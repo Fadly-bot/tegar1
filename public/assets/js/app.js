@@ -244,8 +244,15 @@ function orderPackageFromQuery() {
   if (location.search) history.replaceState({}, '', location.pathname);
 }
 
+// Make the public landing page the deterministic first view, before any
+// session request completes (or if that request is unavailable).
+showView('home');
+
 request('/api/auth.php?action=me').then(({ user }) => {
   currentUser = user;
+  // Public visits always start on the homepage. Restore the dashboard only for
+  // an authenticated session, and never let a stale URL fragment open the login.
   if (user) showView('app');
+  else showView('home');
 }).catch(() => {});
 orderPackageFromQuery();
